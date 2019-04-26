@@ -9,7 +9,7 @@ class Vocab:
     def __call__(self, word):
        return self.word2idx[word] if word in self.word2idx else -1
 
-   def add(self, word):
+    def add(self, word):
        if word in self.word2idx:
            return 
 

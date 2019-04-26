@@ -16,7 +16,7 @@ def main():
     with open('../data/vocab.pkl', 'rb') as f:
         vocab = pickle.load(f)
 
-    dataset = NEWS(path='../data/corpus.pkl', vocab=vocab)
+    dataset = NEWS(path='../data/corpus.json', vocab=vocab)
     dataloader = get_dataloader(dataset, batch_size=2, shuffle=True)
     encoder = Encoder(emb_size=200, hidden_size=512, vocab_size=len(vocab))
     decoder = Decoder(emb_size=200, hidden_size=1024, vocab_size=len(vocab))

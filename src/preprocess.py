@@ -45,7 +45,7 @@ def run_preprocess(args):
     # save the vocabulary and processed sentences
     with open(os.path.join(args.save_dir,"vocab.pkl"), 'wb') as f:
         pickle.dump(vocab, f)
-    with open(os.path.join(args.save_dir,"corpus.pkl"), 'w') as f:
+    with open(os.path.join(args.save_dir,"corpus.json"), 'w') as f:
         json.dump({"sentences":tokenized_sentences}, f)
     
 

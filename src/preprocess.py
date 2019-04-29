@@ -24,9 +24,6 @@ def run_preprocess(args):
                 counter[word] += 1
             line_idx += 1
             
-            if line_idx == 10000:
-                break
-    
     # remove the low frequency word and sentences contain them / build vocabulary
     vocab = Vocab()
     vocab.add('<pad>')
@@ -41,12 +38,15 @@ def run_preprocess(args):
             vocab.add(word)
     # remove empty lines
     tokenized_sentences = [s for s in tokenized_sentences if s]
-    print(tokenized_sentences[0])
+    train_split = int(len(tokenized_sentences) * 0.8)
+    print(len(tokenized_sentences[train_split:]))
     # save the vocabulary and processed sentences
     with open(os.path.join(args.save_dir,"vocab.pkl"), 'wb') as f:
         pickle.dump(vocab, f)
-    with open(os.path.join(args.save_dir,"corpus.json"), 'w') as f:
-        json.dump({"sentences":tokenized_sentences}, f)
+    with open(os.path.join(args.save_dir,"train.json"), 'w') as f:
+        json.dump({"sentences":tokenized_sentences[:train_split]}, f)
+    with open(os.path.join(args.save_dir,"val.json"), 'w') as f:
+        json.dump({"sentences":tokenized_sentences[train_split:]}, f)
     
 
 if __name__ == "__main__":

@@ -13,41 +13,54 @@ class SentenceAE:
         self.optim  = optimizer
 
     def train(self, dataloader, trainable=True, device='cpu'):
+
         total_loss = 0
+        aug_loss_fn = nn.CosineEmbeddingLoss(reduction='sum') 
         for i, (x, lengths) in enumerate(dataloader):
             loss = 0
+            aug_loss = 0
+            self.optim.zero_grad()
             B, S = x.size()
             state = self.encoder(x, lengths) # (B, 2H)
             inp = th.LongTensor([[self.vocab("<bos>")]]*B).view(B, 1).to(device) # (B, 1)
-            inp = self.encoder.embedding(inp).squeeze() # (B, E)
+            inp = self.encoder.embedding(inp).view(B, -1) # (B, E)
             for t in range(S):
-                _ , logit, state = self.decoder(inp, state)
-                loss += (self.loss_fn(logit, x[:,t]).sum() / lengths.sum().item())
-                inp = self.encoder.embedding(x[:,t]).squeeze().detach()
-                
+                vec , logit, state = self.decoder(inp, state)
+                loss += self.loss_fn(logit, x[:,t])
+                # Normal seq2seq
+                inp = self.encoder.embedding(x[:, t])
+                # Training using embedding
+                #inp = vec.view(B, -1)
+                #aug_loss += aug_loss_fn(vec, self.encoder.embedding(x[:, t]).data, th.ones((B,1)))
             
-            loss /= B
+            #loss += aug_loss
+            loss /= lengths.sum().item()
             if trainable:
                 loss.backward()
                 self.optim.step()
-
+            
+            
             total_loss += loss.item()
-            if i % 20 == 0:
-                print("batch:{}/{}, loss:{}, total loss:{}".format(i, len(dataloader), loss.item(), total_loss / (i + 1)))
+            print("\rbatch:{}/{}, loss:{}, total loss:{}".format(i, len(dataloader), loss.item(), total_loss / (i + 1)), end='')
             
     
     def inference(self, src):
         
         S = src.size(0)
-        src = src.unqueeze(0) # (1, S)
+        B = 1
+        src = src.view(B, -1) # (1, S)
         state = self.encoder(src, [S])
-        inp = th.LongTensor([[vocab("<bos>")]]*B).view(1, 1).to(device) # (1, 1)
+        inp = th.LongTensor([[self.vocab("<bos>")]]*B).view(1, 1).to('cpu') # (1, 1)
+        inp = self.encoder.embedding(inp).view(B, -1)
         gen = ""
         for t in range(S):
             emb, out, state = self.decoder(inp, state)
             _, idx = out.max(dim=1, keepdim=True)
-            inp = self.encoder.embedding(idx).view(1, -1)
-            gen += self.vocab.idx2word[idx.item()]
+            # Normal argmax
+            inp = self.encoder.embedding(idx.view(B, 1)).view(B, -1)
+            # Use embeddinh version input
+            # inp = emb.view(B, -1)
+            gen += self.vocab.idx2word[idx.item()] + " "
 
         return gen
     

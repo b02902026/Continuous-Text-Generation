@@ -31,10 +31,10 @@ class Encoder(nn.Module):
         return h, c
 
 class Decoder(nn.Module):
-    def __init__(self, emb_size, hidden_size, vocab_size):
+    def __init__(self, emb_size, embedding_layer, hidden_size, vocab_size):
         super(Decoder, self).__init__()
         self.hidden_size = hidden_size
-        #self.embedding = embedding_layer
+        self.embedding = embedding_layer
         self.emb_size = emb_size
         self.decoder = nn.LSTMCell(self.emb_size, self.hidden_size)
         self.output_fc = nn.Linear(self.hidden_size, vocab_size)
@@ -43,14 +43,45 @@ class Decoder(nn.Module):
     
     def forward(self, src, state):
         
-        #emb = src.matmul(self.embedding.weight) # (B, S, V) * (V, E)
-        h, c = self.decoder(src, state)
+        emb = self.embedding(src).squeeze(1)
+        h, c = self.decoder(emb, state)
         prob = self.output_fc(h)
         #prob = F.log_softmax(prob, dim=-1)
 
         return prob, (h, c)
+
+
+        
+class Discriminator(nn.Module):
+    def __init__(self, emb_size, kernel_sizes):
+        super(Discriminator, self).__init__()
+        self.embedding_size = emb_size
+        self.out_channel = 50
+        cnns = []
+        for k in kernel_sizes:
+            cnns.append(nn.Conv1d(in_channels=self.embedding_size, out_channels=self.out_channel, kernel_size=k))
+        
+        self.CNNs = nn.ModuleList(cnns)
+        self.transform = nn.Linear(self.out_channel * len(kernel_sizes), 1)
         
     
-    
+    def forward(self, x):
+        feats = []
+        B, S, _ = x.size()
+        x = x.permute(0,2,1) # (B, E, S)
+        for i in range(len(self.CNNs)):
+            feat = self.CNNs[i](x) # (B, out channel, S)
+            feat = F.max_pool1d(feat, kernel_size=S).squeeze() # (B, out_channel)
+            feats.append(feat)
+
+        feats = th.cat(feats, dim=-1)
+        logit = self.transform(feats)
+        prob = F.sigmoid(logit)
+
+        return prob
         
-        
+
+
+
+
+

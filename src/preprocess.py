@@ -15,7 +15,7 @@ def run_preprocess(args):
     tokenizer = TweetTokenizer()
     with open(args.corpus_path) as f:
         for i, line in enumerate(f):
-            tokens = tokenizer.tokenize(line)
+            tokens = tokenizer.tokenize(line.replace("\"",""))
             if len(tokens) < args.sent_threshold:
                 continue
             tokenized_sentences.append(tokens)

@@ -20,10 +20,11 @@ class NEWS(Dataset):
     
     def collate_fn(self, batch):
         batch.sort(key=lambda x: len(x), reverse=True)
-        lengths = [len(x) for x in batch]
+        lengths = [len(x) + 1 for x in batch]
         max_len = lengths[0]
         PAD = self.vocab('<pad>')
-        s = [x + [PAD]*(max_len - len(x)) for x in batch]
+        EOS = self.vocab('<eos>')
+        s = [x + [EOS] + [PAD]*(max_len - len(x)) for x in batch]
         
         return th.LongTensor(s), th.LongTensor(lengths)
 

@@ -46,32 +46,28 @@ class SentenceAE:
 
         return th.stack(noise, 0)
 
+    def to_categorical(self, x):
+        B, S = x.size()
+        onehot = th.zeros(x.size(0), S, len(self.vocab))
+        return onehot.scatter_(2, x.unsqueeze(2), 1.).float()
+
     def train(self, dataloader, training=True, device='cpu'):
 
         total_loss = 0
-        aug_loss_fn = nn.CosineEmbeddingLoss(reduction='none') 
-        alpha = 0.6
-        sampler = th.distributions.gumbel.Gumbel(loc=th.zeros(len(self.vocab)), scale=th.ones(len(self.vocab)))
         for i, (x, lengths) in enumerate(dataloader):
+            B, S = x.size()
+            #sampler = th.distributions.gumbel.Gumbel(th.zeros(S, len(self.vocab)), th.ones(S, len(self.vocab)))
             loss = 0
             aug_loss = []
-            #mask = self.get_mask(lengths)
-            B, S = x.size()
-            state = self.encoder(x, lengths) # (B, 2H)
+            onehot = self.to_categorical(x)
+            state = self.encoder(onehot, lengths) # (B, 2H)
             inp = th.LongTensor([[self.vocab("<bos>")]]*B).view(B, 1).to(device) # (B, 1)
-            #inp = th.zeros(B, len(self.vocab)).scatter_(1, inp, 1) #+ self.get_noise(sampler, B)
-            #noise = self.get_noise(sampler, B)
-            for t in range(S):
-                prob, state = self.decoder(inp, state)
-                loss += self.loss_fn(prob, x[:,t])
-                # Normal seq2seq (gumbel)
-                #inp = th.zeros(B, len(self.vocab)).scatter_(1, x[:, t].view(B, 1), 1) #+ noise
-                inp = x[:, t].view(B, 1)
-                
-                
-                # Training using embedding
-                #inp = vec.view(B, -1)
+            inp = th.cat((inp, x[:,:-1]), 1)
 
+            inp = self.to_categorical(inp)
+            prob, _ = self.decoder(inp, (state[0].unsqueeze(0), state[1].unsqueeze(0)))
+            prob = F.log_softmax(prob, -1)
+            loss = self.loss_fn(prob.view(B*S,-1),x.view(B*S))
             loss /= lengths.sum().item()
             if training:
                 loss.backward()
@@ -87,20 +83,23 @@ class SentenceAE:
         S = src.size(0)
         B = 1
         src = src.view(B, -1) # (1, S)
-        state = self.encoder(src, [S])
+        onehot = self.to_categorical(src)
+        state = self.encoder(onehot, [S])
         inp = th.LongTensor([[self.vocab("<bos>")]]*B).view(1, 1).to('cpu') # (1, 1)
-        #inp = th.zeros(B, len(self.vocab)).scatter_(1, inp, 1) #+ self.get_noise(sampler, B)
+        inp = self.to_categorical(inp)
         gen = ""
+        state = (state[0].unsqueeze(0), state[1].unsqueeze(0))
         for t in range(50):
             out, state = self.decoder(inp, state)
-            _, idx = out.max(dim=1, keepdim=True)
+            _, idx = out.squeeze(1).max(dim=1, keepdim=True)
             # Normal argmax
-            inp = idx
+            inp = F.softmax(out, -1)
+            #inp = self.to_categorical(idx)
             # Use embeddinh version input
             #inp = emb.view(B, -1)
+            gen += self.vocab.idx2word[idx.item()] + " "
             if self.vocab.idx2word[idx.item()] == "<eos>":
                 break
-            gen += self.vocab.idx2word[idx.item()] + " "
 
         return gen
     
